@@ -1,112 +1,110 @@
-function buildMetadata(symbol) {
+function buildCharts(symbol) {
   var stocks = new Stocks('JY722LVZCMDBOJ9S');
-  var result;
   const getData = async function(symb, interval, amount) {
-    result = await stocks.timeSeries({
+    const result = await stocks.timeSeries({
       symbol: symb,
       interval: interval,
       amount: amount
     });
+
+    // meta data
     var container = d3.select("#symbol-metadata");
     container.html("");
     Object.entries(result[0]).forEach(([key, value]) => 
       container.append("div").text(key + ": " + value)
     );
+
+    // line chart
+    var trace1 = {
+      x: result.map(d => d.date),
+      y: result.map(d => d.open),
+      mode: "lines",
+      name: "open",
+    };
+    var trace2 = {
+      x: result.map(d => d.date),
+      y: result.map(d => d.high),
+      mode: "lines",
+      name: "high",
+    };
+    var trace3 = {
+      x: result.map(d => d.date),
+      y: result.map(d => d.low),
+      mode: "lines",
+      name: "low",
+    };
+    var trace4 = {
+      x: result.map(d => d.date),
+      y: result.map(d => d.close),
+      mode: "lines",
+      name: "close",
+    };
+    var stockData = [trace1, trace2, trace3, trace4];
+    var layout = {
+      title: `Ticker prices for ${symbol} `,
+    };
+    Plotly.newPlot('stock_1', stockData, layout);
+
   }
   getData(symbol, 'daily', 365);
 }
 
 function gainVsLose() {
   d3.json("/scrape").then(function(response){
-    const rawData = response.Stocks;
-    console.log(rawData);
-    const allowed = ['Symbol', 'Last Price', 'Change', '% Change'];
-    rawData.map(raw => {
+    const display = ['Symbol', 'Price (Intraday)', 'Change', '% Change'];
+    const filtered = response.Stocks.map(raw => {
       return Object.keys(raw)
-        .filter(key => allowed.includes(key))
+        .filter(key => display.includes(key))
         .reduce((obj, key) => {
           obj[key] = raw[key];
           return obj;
         }, {});
     });
     
-    
-    console.log(rawData);
-    return;
-    gainers = response.Stocks.slice(0,3);
-    losers = response.Stocks.slice(3);
-    tableHead = ['Symbol', 'Last Price', 'Change', '% Change'];
+    const gainers = filtered.slice(0,3);
+    const losers = filtered.slice(3);
 
-    var gainerTable = d3.select('#stocks_gainers').append('table');
+    // gainers table
+    var gainerTable = d3.select('#stocks_gainers').append('table').attr("class", "table");
     gainerTable.append('thead').append('tr')
-                .selectAll('th')
-                .data(tableHead).enter()
-                .append('th')
-                .text(function (d) {
-                  return d;
-                });
+      .selectAll('th')
+      .data(display).enter()
+      .append('th')
+      .text(d => d);
 		var rows = gainerTable.append('tbody').selectAll('tr')
-		               .data(gainers).enter()
-		               .append('tr');
-		rows.selectAll('td')
+      .data(gainers).enter()
+      .append('tr');
+    rows.selectAll('td')
+        .data(function(row) {
+          return display.map(column => {
+            return { column: column, value: row[column] };
+          });
+        })
         .enter()
 		    .append('td')
-		    .attr('data-th', function (d) {
-		    	return d.name;
-		    })
-		    .text(function (d) {
-		    	return d.value;
-		    });
+		    .text(d=>d.value);
+
+    // losers table
+    var loserTable = d3.select('#stocks_losers').append('table').attr("class", "table");
+    loserTable.append('thead').append('tr')
+      .selectAll('th')
+      .data(display).enter()
+      .append('th')
+      .text(d => d);
+    var rows = loserTable.append('tbody').selectAll('tr')
+      .data(losers).enter()
+      .append('tr');
+    rows.selectAll('td')
+      .data(function (row) {
+        return display.map(column => {
+          return { column: column, value: row[column] };
+        });
+      })
+      .enter()
+      .append('td')
+      .text(d => d.value);
    
   });
-}
-
-function buildCharts(sample) {
-  return '';
-  var url = "/samples/" + sample;
-  d3.json(url).then(function(response){
-    var data = Object.values(response)[0].map(() => {return {}});
-    Object.keys(response).map(key => {
-      for (let i = 0; i < Object.values(response)[0].length; i++) {
-        data[i][key] = response[key][i];
-      }
-    });
-    var top10 = data.sort((a,b) => b.sample_values - a.sample_values).slice(0,10);
-
-    var labels = [];
-    var values = [];
-    var text = [];
-    top10.forEach(ele => {
-      labels.push(ele.otu_ids);
-      values.push(ele.sample_values);
-      text.push(ele.otu_labels);
-    });
-
-    pieData = [{
-      "labels": labels,
-      "values": values,
-      "text": text,
-      "type": "pie",
-      "textinfo": 'percent'
-    }];
-    // Plotly.newPlot("pie", pieData);
-
-    // bubble chart
-    var trace1 = {
-      x: response.otu_ids,
-      y: response.sample_values,
-      text: response.otu_labels,
-      mode: 'markers',
-      marker: {
-        size: response.sample_values,
-        color: response.otu_ids.map(x=> "#" + Number(x).toString(16))
-      }
-    };
-    var bubbleData = [trace1];
-    // Plotly.newPlot('bubble', bubbleData);
-    
-  });
-
 }
 
 function init() {
@@ -125,7 +123,6 @@ function init() {
     // Use the first sample from the list to build the initial plots
     const firstSymbol = symbol[0];
     buildCharts(firstSymbol);
-    buildMetadata(firstSymbol);
   });
   gainVsLose();
 }
@@ -133,7 +130,6 @@ function init() {
 function optionChanged(symbol) {
   // Fetch new data each time a new sample is selected
   buildCharts(symbol);
-  buildMetadata(symbol);
 }
 
 // Initialize the dashboard
