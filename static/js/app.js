@@ -1,17 +1,68 @@
-function buildMetadata(sample) {
-  var url = "/metadata/" + sample;
-  d3.json(url).then(function(response){
-    var container = d3.select("#sample-metadata");
-    container.html("");
-    Object.entries(response).forEach(([key, value]) => {
-      if (key != "WFREQ") {
-        container.append("div").text(key + ": " + value);
-      }
+function buildMetadata(symbol) {
+  var stocks = new Stocks('JY722LVZCMDBOJ9S');
+  var result;
+  const getData = async function(symb, interval, amount) {
+    result = await stocks.timeSeries({
+      symbol: symb,
+      interval: interval,
+      amount: amount
     });
+    var container = d3.select("#symbol-metadata");
+    container.html("");
+    Object.entries(result[0]).forEach(([key, value]) => 
+      container.append("div").text(key + ": " + value)
+    );
+  }
+  getData(symbol, 'daily', 365);
+}
+
+function gainVsLose() {
+  d3.json("/scrape").then(function(response){
+    const rawData = response.Stocks;
+    console.log(rawData);
+    const allowed = ['Symbol', 'Last Price', 'Change', '% Change'];
+    rawData.map(raw => {
+      return Object.keys(raw)
+        .filter(key => allowed.includes(key))
+        .reduce((obj, key) => {
+          obj[key] = raw[key];
+          return obj;
+        }, {});
+    });
+    
+    
+    console.log(rawData);
+    return;
+    gainers = response.Stocks.slice(0,3);
+    losers = response.Stocks.slice(3);
+    tableHead = ['Symbol', 'Last Price', 'Change', '% Change'];
+
+    var gainerTable = d3.select('#stocks_gainers').append('table');
+    gainerTable.append('thead').append('tr')
+                .selectAll('th')
+                .data(tableHead).enter()
+                .append('th')
+                .text(function (d) {
+                  return d;
+                });
+		var rows = gainerTable.append('tbody').selectAll('tr')
+		               .data(gainers).enter()
+		               .append('tr');
+		rows.selectAll('td')
+        .enter()
+		    .append('td')
+		    .attr('data-th', function (d) {
+		    	return d.name;
+		    })
+		    .text(function (d) {
+		    	return d.value;
+		    });
+   
   });
 }
 
 function buildCharts(sample) {
+  return '';
   var url = "/samples/" + sample;
   d3.json(url).then(function(response){
     var data = Object.values(response)[0].map(() => {return {}});
@@ -63,41 +114,27 @@ function init() {
   var selector = d3.select("#selDataset");
 
   // Use the list of sample names to populate the select options
-  d3.json("/names").then((sampleNames) => {
-    sampleNames.forEach((sample) => {
+  d3.json("/ticker").then((symbol) => {
+    symbol.forEach((data) => {
       selector
         .append("option")
-        .text(sample)
-        .property("value", sample);
+        .text(data)
+        .property("value", data);
     });
 
     // Use the first sample from the list to build the initial plots
-    const firstSample = sampleNames[0];
-    console.log(firstSample);
-    buildCharts(firstSample);
-    buildMetadata(firstSample);
+    const firstSymbol = symbol[0];
+    buildCharts(firstSymbol);
+    buildMetadata(firstSymbol);
   });
+  gainVsLose();
 }
 
-function optionChanged(newSample) {
+function optionChanged(symbol) {
   // Fetch new data each time a new sample is selected
-  buildCharts(newSample);
-  buildMetadata(newSample);
+  buildCharts(symbol);
+  buildMetadata(symbol);
 }
 
 // Initialize the dashboard
 init();
-
-var stocks = new Stocks('JY722LVZCMDBOJ9S');
-const getData = async function(symb, intval, amount) {
-  var result = await stocks.timeSeries({
-    symbol: symb,
-    interval: intval,
-    amount: amount
-  });
-  console.log(result);
-}
-getData('TSLA', 'daily', 365);
-
-
-// console.log(result);
